@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Detective: The Stickman Story</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f0f9ff;
+            --primary-color: #3b82f6;
+            --secondary-color: #fb923c;
+            --text-color: #1e293b;
+            --detective-start-pos: 10%;
+            --thief-start-pos: 80%;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        /* --- Scene & Background --- */
+        .game-world {
+            width: 100%;
+            height: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            overflow: hidden;
+            z-index: -1;
+        }
+
+        .floating-math {
+            position: absolute;
+            font-size: 2rem;
+            font-weight: 900;
+            color: rgba(59, 130, 246, 0.1);
+            animation: float 20s linear infinite;
+        }
+
+        @keyframes float {
+            from { transform: translateY(100vh) rotate(0deg); }
+            to { transform: translateY(-100%) rotate(360deg); }
+        }
+
+        /* --- Characters --- */
+        .character {
+            position: absolute;
+            bottom: 10%;
+            width: 150px;
+            height: 150px;
+            transition: left 1s ease-in-out, transform 0.3s ease;
+            z-index: 2;
+        }
+
+        #detective { left: var(--detective-start-pos); }
+        #thief { left: var(--thief-start-pos); }
+        
+        .walking { animation: walk-cycle 0.5s infinite; }
+        @keyframes walk-cycle { 50% { transform: translateY(-10px); } }
+
+        .thief-laugh { animation: laugh-shake 0.5s; }
+        @keyframes laugh-shake {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(5deg); }
+            75% { transform: rotate(-5deg); }
+        }
+        
+        /* --- Game UI --- */
+        .speech-bubble {
+            position: absolute;
+            bottom: calc(10% + 180px); /* Adjusted for character height */
+            left: var(--detective-start-pos);
+            transform: translateX(75px);
+            width: 280px; /* Wider for story text */
+            padding: 1rem;
+            background: white;
+            border-radius: 15px;
+            border: 3px solid var(--primary-color);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            font-size: 1.2rem; /* Adjusted for story text */
+            font-weight: 700;
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s, left 1s ease-in-out;
+        }
+        .speech-bubble.show { opacity: 1; transform: translateX(75px) translateY(-10px); }
+
+        .speech-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -15px;
+            left: 30px;
+            width: 0;
+            height: 0;
+            border: 15px solid transparent;
+            border-top-color: var(--primary-color);
+        }
+
+        #answer-form {
+            position: fixed;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            width: 90%;
+            max-width: 400px;
+            z-index: 10;
+        }
+
+        #answer-input {
+            flex-grow: 1;
+            font-family: 'Nunito', sans-serif;
+            padding: 1rem;
+            border-radius: 50px;
+            border: 3px solid var(--secondary-color);
+            font-size: 1.5rem;
+            text-align: center;
+            font-weight: 700;
+        }
+        
+        /* --- Modals (Start/End Screens) --- */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .modal-content { max-width: 600px; position: relative; }
+        .modal-content h1 { font-size: 3.5rem; font-weight: 900; color: var(--primary-color); margin-bottom: 1rem; }
+        .modal-content p { font-size: 1.2rem; margin-bottom: 2rem; }
+        
+        #upload-label {
+            display: inline-block;
+            padding: 1rem 2rem;
+            background: var(--secondary-color);
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 700;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        #upload-label:hover { transform: scale(1.05); }
+
+        .loader {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .hidden { display: none; }
+
+        /* --- Win Screen Specifics --- */
+        #win-image {
+            width: 250px;
+            height: 250px;
+            margin: 0 auto 1rem;
+        }
+        #win-image svg {
+            width: 100%;
+            height: 100%;
+        }
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 20px;
+            background: #f00;
+            opacity: 0.9;
+            animation: fall-and-sway 4s linear forwards;
+        }
+        @keyframes fall-and-sway {
+            to {
+                transform: translateY(100vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="game-world" id="game-world"></div>
+
+    <div id="detective" class="character">
+        <!-- Stickman Detective SVG -->
+        <svg viewBox="0 0 150 150"><g stroke="#1e293b" stroke-width="8" stroke-linecap="round"><circle cx="75" cy="30" r="15"/><line x1="75" y1="45" x2="75" y2="90"/><line x1="50" y1="60" x2="100" y2="60"/><line x1="75" y1="90" x2="50" y2="130"/><line x1="75" y1="90" x2="100" y2="130"/><path d="M60 15 H90" stroke-width="4"/><rect x="65" y="5" width="20" height="10" fill="#1e293b"/></g></svg>
+    </div>
+    <div id="thief" class="character">
+        <!-- Stickman Thief SVG -->
+        <svg viewBox="0 0 150 150"><g stroke="#1e293b" stroke-width="8" stroke-linecap="round"><circle cx="75" cy="30" r="15"/><line x1="75" y1="45" x2="75" y2="90"/><line x1="50" y1="60" x2="100" y2="60"/><line x1="75" y1="90" x2="50" y2="130"/><line x1="75" y1="90" x2="100" y2="130"/><rect x="55" y="25" width="40" height="10" fill="#1e293b"/></g></svg>
+    </div>
+    
+    <div id="speech-bubble" class="speech-bubble"></div>
+
+    <div id="start-screen" class="modal">
+        <div class="modal-content">
+            <h1>Math Detective Adventure</h1>
+            <p>Upload an image with 10 math problems to start the chase! The detective needs your help to solve the cases and catch the tricky thief.</p>
+            <label for="image-upload" id="upload-label">Upload Image</label>
+            <input type="file" id="image-upload" class="hidden" accept="image/*">
+        </div>
+    </div>
+    
+    <div id="loading-screen" class="modal hidden">
+        <div class="modal-content">
+            <div class="loader" style="margin: 0 auto 1rem;"></div>
+            <p>Detective is analyzing the image...</p>
+        </div>
+    </div>
+
+    <form id="answer-form" class="hidden">
+        <input type="text" id="answer-input" placeholder="Type your answer...">
+    </form>
+
+    <div id="win-screen" class="modal hidden">
+        <div class="modal-content">
+            <div id="win-image">
+                <!-- NEW STICKMAN WIN SVG -->
+                <svg viewBox="0 0 200 150">
+                    <!-- Detective -->
+                    <g transform="translate(20, 0)" stroke="#1e293b" stroke-width="6" stroke-linecap="round">
+                        <circle cx="50" cy="30" r="15"/>
+                        <line x1="50" y1="45" x2="50" y2="90"/>
+                        <line x1="25" y1="60" x2="75" y2="60"/>
+                        <line x1="50" y1="90" x2="25" y2="130"/>
+                        <line x1="50" y1="90" x2="75" y2="130"/>
+                        <path d="M35 15 H65" stroke-width="3"/>
+                        <rect x="40" y="5" width="20" height="10" fill="#1e293b"/>
+                    </g>
+                    <!-- Thief -->
+                    <g transform="translate(100, 0)" stroke="#1e293b" stroke-width="6" stroke-linecap="round">
+                        <circle cx="50" cy="30" r="15"/>
+                        <line x1="50" y1="45" x2="50" y2="90"/>
+                        <!-- Hands cuffed behind back -->
+                        <line x1="50" y1="70" x2="60" y2="65"/>
+                        <line x1="50" y1="70" x2="40" y2="65"/>
+                        <line x1="50" y1="90" x2="25" y2="130"/>
+                        <line x1="50" y1="90" x2="75" y2="130"/>
+                        <rect x="30" y="25" width="40" height="10" fill="#1e293b"/>
+                    </g>
+                    <!-- Cuffs -->
+                    <g stroke="#a1a1aa" stroke-width="3" fill="none">
+                        <path d="M 95 65 C 90 60, 80 60, 75 65" />
+                    </g>
+                </svg>
+            </div>
+            <h1>Great Job!</h1>
+            <p>Amazing work, detective! Your math skills saved the day. Case closed!</p>
+            <button class="play-again-button">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const detective = document.getElementById('detective');
+        const thief = document.getElementById('thief');
+        const speechBubble = document.getElementById('speech-bubble');
+        const answerForm = document.getElementById('answer-form');
+        const answerInput = document.getElementById('answer-input');
+        const imageUpload = document.getElementById('image-upload');
+        const startScreen = document.getElementById('start-screen');
+        const loadingScreen = document.getElementById('loading-screen');
+        const winScreen = document.getElementById('win-screen');
+        const playAgainButtons = document.querySelectorAll('.play-again-button');
+        const gameWorld = document.getElementById('game-world');
+
+        // Game State
+        let questions = [];
+        let currentQuestionIndex = 0;
+        const detectiveMoveIncrement = 8.5; 
+        const thiefMoveIncrement = 5;
+        const synth = window.speechSynthesis;
+        let voices = [];
+
+        // Story-based clues
+        const clues = [
+            "We found a muddy footprint near the window.",
+            "A security camera shows a shadowy figure at 2 AM.",
+            "A single black glove was left at the scene.",
+            "The thief left a riddle on a napkin.",
+            "We've identified the getaway vehicle - a vintage black car.",
+            "A witness heard a strange melody just before the theft.",
+            "We found a fingerprint on the safe handle.",
+            "The thief dropped a key to a downtown hotel room.",
+            "We've intercepted a coded message about a secret meeting.",
+            "The final piece! The thief's name is 'Sticksy' Malone!"
+        ];
+
+        // --- Background Animation ---
+        function createFloatingMath() {
+            const symbols = ['+', '-', '×', '÷', '=', '?'];
+            for (let i = 0; i < 20; i++) {
+                const el = document.createElement('div');
+                el.className = 'floating-math';
+                el.textContent = Math.random() > 0.5 ? Math.floor(Math.random() * 100) : symbols[Math.floor(Math.random() * symbols.length)];
+                el.style.left = `${Math.random() * 100}vw`;
+                el.style.animationDuration = `${Math.random() * 15 + 10}s`;
+                el.style.animationDelay = `${Math.random() * 10}s`;
+                gameWorld.appendChild(el);
+            }
+        }
+        createFloatingMath();
+        
+        // --- Speech Synthesis ---
+        function populateVoiceList() {
+            voices = synth.getVoices();
+        }
+        populateVoiceList();
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = populateVoiceList;
+        }
+
+        function speak(text, voiceType = 'detective', callback) {
+            if (synth.speaking) {
+                synth.cancel();
+            }
+            setTimeout(() => {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.onend = callback;
+                utterance.onerror = (event) => {
+                    console.error('SpeechSynthesisUtterance.onerror', event);
+                    if (callback) callback();
+                };
+                
+                if (voices.length > 0) {
+                    let selectedVoice;
+                    if (voiceType === 'thief') {
+                        selectedVoice = voices.find(voice => voice.lang.startsWith('en') && voice.name.includes('Female'));
+                        utterance.pitch = 1.5;
+                        utterance.rate = 1.2;
+                    } else {
+                        selectedVoice = voices.find(voice => voice.lang.startsWith('en') && voice.name.includes('Male'));
+                        utterance.pitch = 0.8;
+                        utterance.rate = 1;
+                    }
+                    if (!selectedVoice) selectedVoice = voices.find(voice => voice.lang.startsWith('en'));
+                    utterance.voice = selectedVoice;
+                } else {
+                    if (voiceType === 'thief') {
+                        utterance.pitch = 1.5;
+                        utterance.rate = 1.2;
+                    } else {
+                        utterance.pitch = 0.8;
+                        utterance.rate = 1;
+                    }
+                }
+                
+                synth.speak(utterance);
+            }, 100);
+        }
+
+
+        // --- Gemini API Call ---
+        async function extractQuestionsFromImage(imageBase64) {
+            const apiKey = ""; // Handled by environment
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+            const systemPrompt = `Analyze the user-provided image. Identify and extract exactly 10 simple mathematical questions (e.g., "8+9", "45-17"). Your output MUST be a valid JSON array of strings. For example: ["5+5", "10-3", ...]. Do not include any other text or explanations.`;
+
+            const payload = {
+                contents: [{
+                    parts: [
+                        { text: "Extract 10 math problems from this image as a JSON array." },
+                        { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } }
+                    ]
+                }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+                const result = await response.json();
+                const text = result.candidates[0].content.parts[0].text;
+                const jsonString = text.substring(text.indexOf('['), text.lastIndexOf(']') + 1);
+                return JSON.parse(jsonString);
+            } catch (error) {
+                console.error("Error extracting questions:", error);
+                alert("Sorry, I couldn't read the questions from that image. Please try another one.");
+                return null;
+            }
+        }
+
+        // --- Game Logic ---
+        async function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            startScreen.classList.add('hidden');
+            loadingScreen.classList.remove('hidden');
+
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                const base64Data = reader.result.split(',')[1];
+                const extractedQuestions = await extractQuestionsFromImage(base64Data);
+                
+                loadingScreen.classList.add('hidden');
+                if (extractedQuestions && extractedQuestions.length > 0) {
+                    questions = extractedQuestions;
+                    startGame();
+                } else {
+                    startScreen.classList.remove('hidden');
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function startGame() {
+            currentQuestionIndex = 0;
+            detective.style.left = `var(--detective-start-pos)`;
+            thief.style.left = `var(--thief-start-pos)`;
+            winScreen.classList.add('hidden');
+            answerForm.classList.remove('hidden');
+            displayQuestion();
+        }
+
+        function displayQuestion() {
+            const detectivePos = parseFloat(detective.style.left || 10);
+            const thiefPos = parseFloat(thief.style.left || 80);
+            
+            if (detectivePos >= thiefPos) {
+                endGame();
+                return;
+            }
+
+            // If all questions are answered and thief is not caught, it's a win.
+            if (currentQuestionIndex >= questions.length) {
+                endGame();
+                return;
+            }
+
+            const question = questions[currentQuestionIndex];
+            const questionText = `${question} = ?`;
+            speechBubble.textContent = questionText;
+            speechBubble.style.left = `${detectivePos}%`;
+            speechBubble.classList.add('show');
+            
+            const speakableText = question.replace(/x/gi, 'times').replace('÷', 'divided by').replace('-', 'minus') + " equals what?";
+            speak(speakableText, 'detective');
+            
+            answerInput.value = '';
+            answerInput.focus();
+        }
+
+        function handleAnswerSubmit(e) {
+            e.preventDefault();
+            const userAnswer = answerInput.value.trim();
+            if (userAnswer === '') return;
+
+            let correctAnswer;
+            try {
+                correctAnswer = new Function('return ' + questions[currentQuestionIndex].replace(/x/gi, '*').replace('÷', '/'))();
+            } catch {
+                handleWrongAnswer("That's a tricky one! Let's skip it.");
+                return;
+            }
+            
+            if (parseInt(userAnswer) === correctAnswer) {
+                handleCorrectAnswer();
+            } else {
+                handleWrongAnswer();
+            }
+        }
+
+        function handleCorrectAnswer() {
+            const clue = clues[currentQuestionIndex];
+            speechBubble.textContent = clue;
+            detective.classList.add('walking');
+            
+            const currentPos = parseFloat(detective.style.left || 10);
+            detective.style.left = `${currentPos + detectiveMoveIncrement}%`;
+
+            speak(clue, "detective", () => {
+                setTimeout(() => {
+                    detective.classList.remove('walking');
+                    currentQuestionIndex++;
+                    displayQuestion();
+                }, 500);
+            });
+        }
+
+        function handleWrongAnswer(message = "Try again!") {
+            speechBubble.textContent = message;
+            thief.classList.add('thief-laugh');
+            
+            speak("You loser, come and catch me!", "thief", () => {
+                 setTimeout(() => {
+                    thief.classList.remove('thief-laugh');
+                    displayQuestion(); // Re-ask the same question
+                }, 500);
+            });
+            
+            answerInput.value = '';
+            answerInput.focus();
+        }
+
+        function triggerConfetti() {
+            const winModal = winScreen.querySelector('.modal-content');
+            for (let i = 0; i < 100; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti';
+                confetti.style.left = Math.random() * 100 + '%';
+                confetti.style.animationDelay = Math.random() * 2 + 's';
+                const colors = ['#3b82f6', '#fb923c', '#10b981', '#ef4444'];
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                winModal.appendChild(confetti);
+                setTimeout(() => confetti.remove(), 4000);
+            }
+        }
+
+        function endGame() {
+            answerForm.classList.add('hidden');
+            speechBubble.classList.remove('show');
+            
+            // Final catch animation
+            const thiefPos = parseFloat(thief.style.left);
+            detective.style.left = `${thiefPos - 5}%`; // Move detective to cuff
+            
+            setTimeout(() => {
+                winScreen.classList.remove('hidden');
+                triggerConfetti();
+                speak("Great Job! You solved the case!", "detective");
+            }, 1000); // Show win screen after catch animation
+        }
+
+        // Event Listeners
+        imageUpload.addEventListener('change', handleImageUpload);
+        answerForm.addEventListener('submit', handleAnswerSubmit);
+        playAgainButtons.forEach(button => {
+            button.addEventListener('click', () => location.reload()); // Simple reset
+        });
+
+    </script>
+</body>
+</html>
